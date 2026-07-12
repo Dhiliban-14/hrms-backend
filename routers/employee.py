@@ -15,6 +15,20 @@ from dependencies import get_current_employee
 
 router = APIRouter(prefix="/employees", tags=["Employee Directory"])
 
+@router.get("", response_model=List[EmployeeResponse])
+def get_employee_directory(employee = Depends(get_current_employee)):
+    """
+    Returns a list of all active employees (excluding the current employee) for directory lookup.
+    """
+    try:
+        response = supabase.table("employees").select("*").neq("id", employee["id"]).execute()
+        return response.data
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch employee directory: {str(e)}"
+        )
+
 @router.get("/me", response_model=EmployeeResponse)
 def get_my_profile(employee = Depends(get_current_employee)):
     """
