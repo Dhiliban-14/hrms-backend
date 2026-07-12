@@ -203,7 +203,7 @@ class AttendanceBase(BaseModel):
     date: date
     check_in: Optional[time] = None
     check_out: Optional[time] = None
-    working_hours: Decimal = Decimal("0.00")
+    working_hours: Optional[Decimal] = Decimal("0.00")
     status: str # PRESENT, LATE, ABSENT, WEEKEND
     remarks: Optional[str] = None
 
