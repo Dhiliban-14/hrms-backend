@@ -180,3 +180,18 @@ def request_attendance_report(report_data: AttendanceReportRequest, employee = D
         "download_url": f"/api/attendance/download/{filename}",
         "file_path": file_path
     }
+
+@router.delete("/today")
+def delete_today_attendance(employee = Depends(get_current_employee)):
+    """
+    Deletes today's attendance log for the logged-in employee (useful for testing/demo).
+    """
+    try:
+        today_date = date.today().isoformat()
+        supabase.table("attendance").delete().eq("employee_id", employee["id"]).eq("date", today_date).execute()
+        return {"message": "Today's attendance log reset successfully."}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to reset attendance: {str(e)}"
+        )
