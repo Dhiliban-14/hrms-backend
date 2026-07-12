@@ -1,7 +1,7 @@
 # main.py
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
-from routers import auth, employee, tasks, attendance, leaves, payroll, support, inbox, notifications
+from routers import auth, employee, tasks, attendance, leaves, payroll, support, inbox, notifications, calendar
 
 app = FastAPI(
     title="HRMS Employee Portal Backend",
@@ -32,6 +32,7 @@ app.include_router(payroll.router, prefix="/api")
 app.include_router(support.router, prefix="/api")
 app.include_router(inbox.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")
+app.include_router(calendar.router, prefix="/api")
 
 @app.get("/", status_code=status.HTTP_200_OK, tags=["System Health"])
 def root_check():
