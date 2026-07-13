@@ -227,14 +227,14 @@ class AttendanceReportRequest(BaseModel):
 class LeaveBalanceResponse(BaseModel):
     id: int
     employee_id: str
-    casual_used: Decimal
-    casual_total: Decimal
-    sick_used: Decimal
-    sick_total: Decimal
-    earned_used: Decimal
-    earned_total: Decimal
-    maternity_used: Decimal
-    maternity_total: Decimal
+    casual_used: float
+    casual_total: float
+    sick_used: float
+    sick_total: float
+    earned_used: float
+    earned_total: float
+    maternity_used: float
+    maternity_total: float
 
 class LeaveRequestBase(BaseModel):
     leave_type: str # Casual Leave, Sick Leave, Earned Leave, Maternity Leave
