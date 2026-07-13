@@ -252,3 +252,27 @@ def request_leave_report(report_data: LeaveReportRequest, employee = Depends(get
         "download_url": f"/api/leaves/download/{filename}",
         "file_path": file_path
     }
+
+@router.delete("/requests")
+def clear_my_leave_requests(employee = Depends(get_current_employee)):
+    """
+    Clears all leave requests and resets leave balances back to 0 for the employee (Demo use).
+    """
+    try:
+        # Delete requests
+        supabase.table("leave_requests").delete().eq("employee_id", employee["id"]).execute()
+        
+        # Reset balances
+        supabase.table("leave_balances").update({
+            "earned_used": 0,
+            "sick_used": 0,
+            "casual_used": 0,
+            "maternity_used": 0
+        }).eq("employee_id", employee["id"]).execute()
+        
+        return {"message": "All leave requests cleared and balances reset successfully."}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to clear leave requests: {str(e)}"
+        )
