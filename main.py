@@ -1,7 +1,11 @@
 # main.py
-from fastapi import FastAPI, status
+from fastapi import FastAPI, status, Request, HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from routers import auth, employee, tasks, attendance, leaves, payroll, support, inbox, notifications, calendar
+import logging
+
+logger = logging.getLogger("hrms")
 
 app = FastAPI(
     title="HRMS Employee Portal Backend",
@@ -33,6 +37,51 @@ app.include_router(support.router, prefix="/api")
 app.include_router(inbox.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")
 app.include_router(calendar.router, prefix="/api")
+
+@app.exception_handler(HTTPException)
+async def custom_http_exception_handler(request: Request, exc: HTTPException):
+    """
+    Sanitizes HTTPException responses if they are 500s or contain raw error/database terminology.
+    """
+    is_sensitive = False
+    detail_lower = str(exc.detail).lower()
+    if exc.status_code >= 500:
+        is_sensitive = True
+    else:
+        sensitive_patterns = ["database", "supabase", "postgres", "sql", "exception", "failed to", "failed retrieve", "error:", "traceback", "keyerror", "typeerror", "psycopg2"]
+        if any(p in detail_lower for p in sensitive_patterns):
+            is_sensitive = True
+            
+    if is_sensitive:
+        logger.error(f"HTTPException {exc.status_code} on {request.url.path}: {exc.detail}")
+        friendly_msg = "An error occurred while processing your request. Please try again later."
+        if exc.status_code == 401:
+            friendly_msg = "Invalid credentials or expired session. Please log in again."
+        elif exc.status_code == 403:
+            friendly_msg = "Access denied. You do not have permission to perform this action."
+        elif exc.status_code == 404:
+            friendly_msg = "The requested information could not be found."
+            
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": friendly_msg}
+        )
+        
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail}
+    )
+
+@app.exception_handler(Exception)
+async def custom_generic_exception_handler(request: Request, exc: Exception):
+    """
+    Catches all unhandled runtime errors, logs the stack trace internally, and returns a clean HTTP 500.
+    """
+    logger.error(f"Unhandled Exception on {request.url.path}: {str(exc)}", exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "An internal server error occurred. Please try again later."}
+    )
 
 @app.get("/", status_code=status.HTTP_200_OK, tags=["System Health"])
 def root_check():
