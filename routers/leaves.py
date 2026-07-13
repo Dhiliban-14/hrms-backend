@@ -63,7 +63,36 @@ def submit_leave_request(req_data: LeaveRequestCreate, employee = Depends(get_cu
     Submits a new leave request. Verifies if the employee has sufficient balance first,
     then logs the request.
     """
+    # Verify calculated days duration matches date range
+    calculated_days = (req_data.to_date - req_data.from_date).days + 1
+    if calculated_days <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="From Date must be on or before To Date."
+        )
+    if req_data.total_days != calculated_days:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid calculated days. Requested {req_data.total_days} days, but date range duration is {calculated_days} days."
+        )
+
     try:
+        # Check for overlapping leave requests (Pending or Approved)
+        overlap_res = supabase.table("leave_requests") \
+            .select("*") \
+            .eq("employee_id", employee["id"]) \
+            .in_("status", ["Pending", "Approved"]) \
+            .execute()
+            
+        for lv in overlap_res.data:
+            lv_from = date.fromisoformat(lv["from_date"])
+            lv_to = date.fromisoformat(lv["to_date"])
+            if req_data.from_date <= lv_to and lv_from <= req_data.to_date:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Overlapping leave request found. You already have an active leave request from {lv['from_date']} to {lv['to_date']}."
+                )
+
         # Check leave balance
         balance_res = supabase.table("leave_balances").select("*").eq("employee_id", employee["id"]).execute()
         if not balance_res.data:
