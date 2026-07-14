@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from typing import List
 from datetime import date
 from decimal import Decimal
+import logging
 from schemas import (
     LeaveBalanceResponse, 
     LeaveRequestResponse, 
@@ -12,6 +13,8 @@ from schemas import (
 from supabase_client import supabase
 from dependencies import get_current_employee
 
+logger = logging.getLogger("hrms")
+
 router = APIRouter(prefix="/leaves", tags=["Leave Management"])
 
 @router.get("/balances", response_model=LeaveBalanceResponse)
@@ -20,6 +23,7 @@ def get_my_leave_balances(employee = Depends(get_current_employee)):
     Retrieves the leave balances (Casual, Sick, Earned, Maternity) for the employee.
     """
     try:
+        # Try to select the balance
         response = supabase.table("leave_balances").select("*").eq("employee_id", employee["id"]).execute()
         if not response.data:
             # If no record exists, create a default one
@@ -34,13 +38,30 @@ def get_my_leave_balances(employee = Depends(get_current_employee)):
                 "maternity_used": 0.00,
                 "maternity_total": 90.00
             }
-            res_insert = supabase.table("leave_balances").insert(default_balance).execute()
-            return res_insert.data[0]
+            try:
+                res_insert = supabase.table("leave_balances").insert(default_balance).execute()
+                if res_insert.data:
+                    return res_insert.data[0]
+            except Exception as insert_err:
+                logger.warning(f"Leave balances insert failed for employee {employee['id']}: {str(insert_err)}. Attempting re-select.")
+                # Attempt to re-select in case of concurrent insert or unique constraint hit
+                response = supabase.table("leave_balances").select("*").eq("employee_id", employee["id"]).execute()
+                if response.data:
+                    return response.data[0]
+                raise insert_err
+                
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to initialize leave balances record."
+            )
         return response.data[0]
+    except HTTPException as he:
+        raise he
     except Exception as e:
+        logger.exception(f"Unexpected error in get_my_leave_balances for employee {employee['id']}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch leave balances: {str(e)}"
+            detail="An error occurred while loading your leave balances."
         )
 
 @router.get("/requests", response_model=List[LeaveRequestResponse])
@@ -52,9 +73,10 @@ def get_my_leave_requests(employee = Depends(get_current_employee)):
         response = supabase.table("leave_requests").select("*").eq("employee_id", employee["id"]).order("applied_on", desc=True).execute()
         return response.data
     except Exception as e:
+        logger.exception(f"Unexpected error in get_my_leave_requests for employee {employee['id']}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch leave requests: {str(e)}"
+            detail="An error occurred while loading your leave requests."
         )
 
 @router.post("/requests", response_model=LeaveRequestResponse, status_code=status.HTTP_201_CREATED)
@@ -155,9 +177,10 @@ def submit_leave_request(req_data: LeaveRequestCreate, employee = Depends(get_cu
     except HTTPException as he:
         raise he
     except Exception as e:
+        logger.exception(f"Unexpected error in submit_leave_request for employee {employee['id']}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Submission failed: {str(e)}"
+            detail="An error occurred while submitting your leave request."
         )
 
 @router.get("/requests/{request_id}")
@@ -231,9 +254,10 @@ def get_leave_request_timeline(request_id: int, employee = Depends(get_current_e
     except HTTPException as he:
         raise he
     except Exception as e:
+        logger.exception(f"Unexpected error in get_leave_request_timeline for employee {employee['id']} and request {request_id}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch timeline: {str(e)}"
+            detail="An error occurred while loading the request timeline."
         )
 
 @router.post("/report")
@@ -272,7 +296,8 @@ def clear_my_leave_requests(employee = Depends(get_current_employee)):
         
         return {"message": "All leave requests cleared and balances reset successfully."}
     except Exception as e:
+        logger.exception(f"Unexpected error in clear_my_leave_requests for employee {employee['id']}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to clear leave requests: {str(e)}"
+            detail="An error occurred while clearing your leave requests."
         )
