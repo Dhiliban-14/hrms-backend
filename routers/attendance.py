@@ -1,11 +1,18 @@
 # routers/attendance.py
 from fastapi import APIRouter, HTTPException, Depends, status
 from typing import List, Optional
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timezone, timedelta
 from decimal import Decimal
 from schemas import AttendanceResponse, CheckInRequest, CheckOutRequest, AttendanceReportRequest
 from supabase_client import supabase
 from dependencies import get_current_employee
+
+def get_ist_now():
+    """
+    Returns the current datetime in Indian Standard Time (IST).
+    """
+    utc_now = datetime.now(timezone.utc)
+    return utc_now.replace(tzinfo=None) + timedelta(hours=5, minutes=30)
 
 router = APIRouter(prefix="/attendance", tags=["Attendance Management"])
 
@@ -36,7 +43,8 @@ def get_attendance_metrics(employee = Depends(get_current_employee)):
     Present Days, Absent Days, Late Days, Overtime Hours, and Total Working Hours.
     """
     try:
-        today = date.today()
+        ist_now = get_ist_now()
+        today = ist_now.date()
         start_of_month = date(today.year, today.month, 1).isoformat()
         
         response = supabase.table("attendance") \
@@ -74,8 +82,9 @@ def check_in(req: CheckInRequest, employee = Depends(get_current_employee)):
     Registers a check-in event for today. If the check-in is after 09:00 AM,
     the status is marked as 'LATE' instead of 'PRESENT'.
     """
-    today_date = date.today().isoformat()
-    now_time = datetime.now().time()
+    ist_now = get_ist_now()
+    today_date = ist_now.date().isoformat()
+    now_time = ist_now.time()
     
     # Define Shift Start: 09:00:00
     shift_start = time(9, 0, 0)
@@ -116,8 +125,9 @@ def check_out(req: CheckOutRequest, employee = Depends(get_current_employee)):
     """
     Registers a check-out event for today and calculates the working hours.
     """
-    today_date = date.today().isoformat()
-    now_time = datetime.now().time()
+    ist_now = get_ist_now()
+    today_date = ist_now.date().isoformat()
+    now_time = ist_now.time()
     
     try:
         # Fetch today's check-in log
@@ -187,7 +197,8 @@ def delete_today_attendance(employee = Depends(get_current_employee)):
     Deletes today's attendance log for the logged-in employee (useful for testing/demo).
     """
     try:
-        today_date = date.today().isoformat()
+        ist_now = get_ist_now()
+        today_date = ist_now.date().isoformat()
         supabase.table("attendance").delete().eq("employee_id", employee["id"]).eq("date", today_date).execute()
         return {"message": "Today's attendance log reset successfully."}
     except Exception as e:
