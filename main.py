@@ -54,6 +54,15 @@ async def custom_http_exception_handler(request: Request, exc: HTTPException):
             
     if is_sensitive:
         logger.error(f"HTTPException {exc.status_code} on {request.url.path}: {exc.detail}")
+        # Append to recent errors for debugging
+        recent_errors.append({
+            "timestamp": datetime.now().isoformat(),
+            "path": request.url.path,
+            "method": request.method,
+            "error_type": "HTTPException",
+            "error_msg": f"Status {exc.status_code}: {exc.detail}",
+            "traceback": traceback.format_exc()
+        })
         friendly_msg = "An error occurred while processing your request. Please try again later."
         if exc.status_code == 401:
             friendly_msg = "Invalid credentials or expired session. Please log in again."
