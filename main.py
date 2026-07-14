@@ -72,16 +72,37 @@ async def custom_http_exception_handler(request: Request, exc: HTTPException):
         content={"detail": exc.detail}
     )
 
+import traceback
+from datetime import datetime
+
+recent_errors = []
+
 @app.exception_handler(Exception)
 async def custom_generic_exception_handler(request: Request, exc: Exception):
     """
     Catches all unhandled runtime errors, logs the stack trace internally, and returns a clean HTTP 500.
     """
+    tb = traceback.format_exc()
     logger.error(f"Unhandled Exception on {request.url.path}: {str(exc)}", exc_info=True)
+    recent_errors.append({
+        "timestamp": datetime.now().isoformat(),
+        "path": request.url.path,
+        "method": request.method,
+        "error_type": type(exc).__name__,
+        "error_msg": str(exc),
+        "traceback": tb
+    })
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": "An internal server error occurred. Please try again later."}
     )
+
+@app.get("/api/debug/errors", tags=["System Debug"])
+def get_debug_errors():
+    """
+    Exposes the last recorded traceback logs for remote troubleshooting.
+    """
+    return recent_errors
 
 @app.get("/", status_code=status.HTTP_200_OK, tags=["System Health"])
 def root_check():
