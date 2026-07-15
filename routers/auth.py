@@ -37,16 +37,38 @@ def change_password(data: ChangePasswordRequest, user = Depends(get_current_user
     Updates the authenticated user's password in Supabase Auth.
     """
     try:
-        # Call Supabase Auth update_user to update password
-        # In a real environment, you might verify the current password first
-        # But Supabase auth handles updating password securely for the currently authenticated session
-        supabase.auth.update_user({
-            "password": data.new_password
-        })
+        # 1. Verify current password by signing in
+        try:
+            auth_res = supabase.auth.sign_in_with_password({
+                "email": user.email,
+                "password": data.current_password
+            })
+            token = auth_res.session.access_token
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Incorrect current password."
+            )
+            
+        # 2. Update password using the access token
+        import requests
+        from config import settings
         
-        # Log this in a password changes audit logs table if needed
-        # (For this mock phase, returning success is sufficient)
+        headers = {
+            "apikey": settings.supabase_key,
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "password": data.new_password
+        }
+        res = requests.put(f"{settings.supabase_url}/auth/v1/user", json=payload, headers=headers)
+        if res.status_code != 200:
+            raise Exception(res.json().get("msg", res.text))
+            
         return {"message": "Password updated successfully"}
+    except HTTPException as he:
+        raise he
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
