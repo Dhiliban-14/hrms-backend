@@ -359,10 +359,10 @@ def seed_payroll():
     }
 
     p1_res = supabase.table("payroll_status").insert(pay1).execute()
-    supabase.table("payroll_status").insert(pay2).execute()
+    p2_res = supabase.table("payroll_status").insert(pay2).execute()
     
     p1_id = p1_res.data[0]["id"]
-    details = {
+    details1 = {
         "payroll_status_id": p1_id,
         "basic_salary": 3000.00,
         "hra": 1200.00,
@@ -376,7 +376,24 @@ def seed_payroll():
         "health_insurance": 150.00,
         "loan_emi": 200.00
     }
-    supabase.table("payslip_details").insert(details).execute()
+    supabase.table("payslip_details").insert(details1).execute()
+
+    p2_id = p2_res.data[0]["id"]
+    details2 = {
+        "payroll_status_id": p2_id,
+        "basic_salary": 3000.00,
+        "hra": 1200.00,
+        "transport_allowance": 200.00,
+        "special_allowance": 500.00,
+        "performance_bonus": 350.00,
+        "other_allowances": 100.00,
+        "pf": 360.00,
+        "professional_tax": 30.00,
+        "tds": 580.00,
+        "health_insurance": 150.00,
+        "loan_emi": 200.00
+    }
+    supabase.table("payslip_details").insert(details2).execute()
 
 def seed_tickets():
     print("Seeding support tickets...")
